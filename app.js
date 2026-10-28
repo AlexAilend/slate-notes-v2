@@ -256,15 +256,18 @@
         <button class="button" data-home>← Головна</button>
         <input id="studySearch" value="${escapeHtml(local.search)}" placeholder="Знайти питання або номер…">
         <select id="studyFilter"><option value="all" ${local.filter === 'all' ? 'selected' : ''}>Усі</option><option value="unanswered" ${local.filter === 'unanswered' ? 'selected' : ''}>Без відповіді</option><option value="wrong" ${local.filter === 'wrong' ? 'selected' : ''}>Помилки</option></select>
-        <button class="button" id="studyShuffle">Випадкове</button>
+        <label><input type="checkbox" id="studyAnswerShuffle" ${local.shuffleStudy ? 'checked' : ''}> Shuffle answers</label><button class="button" id="studyShuffle">Випадкове</button>
       </div>
       <div class="workspace">
         <aside class="side-card"><h3>${escapeHtml(bank().product)} · ${filtered.length}</h3><div class="question-grid">${filtered.map(studyDot).join('')}</div><div class="side-stats">Study checks: ${local.statistics.studyChecks}<br>Правильно: ${local.statistics.studyCorrect}<br>Accuracy: ${pct(local.statistics.studyCorrect, local.statistics.studyChecks)}%</div></aside>
-        <section>${questionCard(q, selected, checked, 'study')}${checked ? `<div class="feedback ${correct ? 'ok' : 'bad'}">${correct ? '✓ Правильно' : '✕ Неправильно'}${!correct ? `. Правильна відповідь: <b>${q.answer.join(', ')}</b>` : ''}</div>` : ''}<div class="actions">${!checked ? `<button class="button primary" id="checkStudy" ${!complete(q, selected) ? 'disabled' : ''}>Перевірити</button>` : '<button class="button primary" id="nextStudy">Наступне питання →</button>'}<span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="prevStudy">← Попереднє</button><button class="button" id="nextStudyNav" ${!checked ? 'disabled' : ''}>Далі →</button></div></section>
+        <section>${questionCard(q, selected, checked, 'study')}${checked ? `<div class="feedback ${correct ? 'ok' : 'bad'}">${correct ? '✓ Правильно' : '✕ Неправильно'}${!correct ? `. Правильна відповідь: <b>${displayAnswers(q, q.answer, 'study')}</b>` : ''}</div>` : ''}<div class="actions">${!checked ? `<button class="button primary" id="checkStudy" ${!complete(q, selected) ? 'disabled' : ''}>Перевірити</button>` : '<button class="button primary" id="nextStudy">Наступне питання →</button>'}<span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="prevStudy">← Попереднє</button><button class="button" id="nextStudyNav" ${!checked ? 'disabled' : ''}>Далі →</button></div></section>
       </div>
     </main>`);
 
     bindQuestionOptions(q, 'study', checked);
+    document.getElementById('studyAnswerShuffle').onchange = event => {
+      local.shuffleStudy = event.target.checked; local.optionOrders = {}; save(); render();
+    };
     document.querySelectorAll('[data-qid]').forEach(button => {
       button.onclick = () => {
         local.studyId = Number(button.dataset.qid);
@@ -333,6 +336,26 @@
     render();
   }
 
+  function optionOrder(q, mode) {
+    if (isOrdering(q)) return [];
+    const local = bs();
+    const session = mode === 'study' ? local : local.exam;
+    const enabled = mode === 'study' ? local.shuffleStudy : session?.shuffleAnswers;
+    if (!enabled) return Object.keys(q.options);
+    session.optionOrders ||= {};
+    if (!session.optionOrders[q.id]) {
+      session.optionOrders[q.id] = Object.keys(q.options);
+      shuffleArray(session.optionOrders[q.id]); save();
+    }
+    return session.optionOrders[q.id];
+  }
+
+  function displayAnswers(q, answers, mode) {
+    if (isOrdering(q)) return answers.map(escapeHtml).join(', ');
+    const order = optionOrder(q, mode);
+    return answers.map(id => String.fromCharCode(65 + order.indexOf(id))).join(', ');
+  }
+
   function questionCard(q, selected, checked, mode) {
     return `<article class="question-card">
       <div class="question-top"><span>${escapeHtml(bank().product)} · Question ${q.id} of ${questions().length}</span><span>${isOrdering(q) ? 'Arrange in order' : q.correctCount === 1 ? 'Single answer' : `Choose ${q.correctCount}`}</span></div>
@@ -340,11 +363,11 @@
       
       ${q.image ? `<div class="exhibit"><img src="${escapeHtml(q.image)}" data-zoom alt="Exhibit for question ${q.id}"></div>` : ''}
       <div class="instruction">${isOrdering(q) ? 'Розташуй критерії по порядку. Кожен використай один раз.' : `Вибери рівно ${q.correctCount} ${q.correctCount === 1 ? 'відповідь' : 'відповіді'}`}</div>
-      <div class="options">${isOrdering(q) ? orderingHtml(q, selected, checked) : Object.entries(q.options).map(([key, value]) => optionHtml(q, key, value, selected, checked, mode)).join('')}</div>
+      <div class="options">${isOrdering(q) ? orderingHtml(q, selected, checked) : optionOrder(q, mode).map((key, index) => optionHtml(q, key, q.options[key], selected, checked, String.fromCharCode(65 + index))).join('')}</div>
     </article>`;
   }
 
-  function optionHtml(q, key, value, selected, checked) {
+  function optionHtml(q, key, value, selected, checked, label) {
     const isSelected = selected.includes(key);
     const isRight = q.answer.includes(key);
     let className = isSelected ? 'selected' : '';
@@ -352,7 +375,7 @@
       if (isRight) className += ' correct';
       else if (isSelected) className += ' wrong';
     }
-    return `<label class="option ${className}"><input type="checkbox" value="${escapeHtml(key)}" ${isSelected ? 'checked' : ''} ${checked ? 'disabled' : ''}><span class="letter">${escapeHtml(key)}</span><span>${escapeHtml(value)}</span></label>`;
+    return `<label class="option ${className}"><input type="checkbox" value="${escapeHtml(key)}" ${isSelected ? 'checked' : ''} ${checked ? 'disabled' : ''}><span class="letter">${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></label>`;
   }
 
   function bindQuestionOptions(q, mode, locked) {
@@ -403,7 +426,7 @@
     const choices = [...new Set([10, 20, 40, total].filter(value => value <= total))];
     if (!Number.isInteger(local.examSize) || local.examSize < 1 || local.examSize > total) local.examSize = Math.min(20, total);
 
-    $app.innerHTML = shell(`<main class="page"><div class="exam-setup"><button class="button" data-home>← Головна</button><section class="panel" style="margin-top:14px"><span class="eyebrow">${escapeHtml(bank().title)}</span><h1 style="font-size:30px">Налаштування екзамену</h1><p class="muted">Оберіть кількість питань і налаштування. Відповіді приховані до завершення.</p><div class="choice-grid">${choices.map(count => `<button class="count-choice ${local.examSize === count ? 'active' : ''}" data-count="${count}">${count === total ? `Full ${total}` : count}</button>`).join('')}</div><label>Custom questions (1–${total}): <input id="customCount" type="number" min="1" max="${total}" step="1" value="${local.examSize}"></label><p id="setupError" role="alert"></p><label><input type="checkbox" id="shuffleExam" checked> Перемішати питання</label><button class="button primary wide" id="startExam" style="margin-top:20px">Почати екзамен</button></section></div></main>`);
+    $app.innerHTML = shell(`<main class="page"><div class="exam-setup"><button class="button" data-home>← Головна</button><section class="panel" style="margin-top:14px"><span class="eyebrow">${escapeHtml(bank().title)}</span><h1 style="font-size:30px">Налаштування екзамену</h1><p class="muted">Оберіть кількість питань і налаштування. Відповіді приховані до завершення.</p><div class="choice-grid">${choices.map(count => `<button class="count-choice ${local.examSize === count ? 'active' : ''}" data-count="${count}">${count === total ? `Full ${total}` : count}</button>`).join('')}</div><label>Custom questions (1–${total}): <input id="customCount" type="number" min="1" max="${total}" step="1" value="${local.examSize}"></label><p id="setupError" role="alert"></p><label><input type="checkbox" id="shuffleExam" checked> Перемішати питання</label><label><input type="checkbox" id="shuffleAnswers"> Shuffle answers</label><button class="button primary wide" id="startExam" style="margin-top:20px">Почати екзамен</button></section></div></main>`);
     document.querySelectorAll('[data-count]').forEach(button => {
       button.onclick = () => {
         local.examSize = Number(button.dataset.count);
@@ -426,7 +449,7 @@
     let ids = questions().map(question => question.id);
     if (shuffle) shuffleArray(ids);
     ids = ids.slice(0, local.examSize);
-    local.exam = { ids, index: 0, answers: {}, startedAt: new Date().toISOString(), finished: false, result: null };
+    local.exam = { ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
     state.view = 'exam';
     save();
     render();
@@ -446,13 +469,13 @@
     const selected = ex.answers[id] || [];
     const canNext = complete(q, selected);
 
-    $app.innerHTML = shell(`<main class="page"><div class="workspace"><aside class="side-card"><h3>${escapeHtml(bank().product)} Exam</h3><div class="question-grid">${ex.ids.map((questionId, index) => `<button class="qdot ${index === ex.index ? 'current' : ''} ${complete(map.get(questionId), ex.answers[questionId] || []) ? 'answered' : ''}" data-eidx="${index}">${index + 1}</button>`).join('')}</div><div class="side-stats">Відповіли: ${ex.ids.filter(questionId => complete(map.get(questionId), ex.answers[questionId] || [])).length}/${ex.ids.length}<br>Правильність прихована до Finish.</div></aside><section><div class="exam-progress"><span style="width:${pct(ex.index + 1, ex.ids.length)}%"></span></div>${questionCard(q, selected, false, 'exam')}<div class="actions"><span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="examPrev" ${ex.index === 0 ? 'disabled' : ''}>← Попереднє</button>${ex.index === ex.ids.length - 1 ? `<button class="button primary" id="finishExam" ${!canNext ? 'disabled' : ''}>Завершити екзамен</button>` : `<button class="button primary" id="examNext" ${!canNext ? 'disabled' : ''}>Далі →</button>`}</div></section></div></main>`);
+    $app.innerHTML = shell(`<main class="page"><div class="workspace"><aside class="side-card"><h3>${escapeHtml(bank().product)} Exam</h3><div class="question-grid">${ex.ids.map((questionId, index) => `<button class="qdot ${index === ex.index ? 'current' : ''} ${complete(map.get(questionId), ex.answers[questionId] || []) ? 'answered' : ''}" data-eidx="${index}">${index + 1}</button>`).join('')}</div><div class="side-stats">Відповіли: ${ex.ids.filter(questionId => complete(map.get(questionId), ex.answers[questionId] || [])).length}/${ex.ids.length}<br>Правильність прихована до Finish.</div></aside><section><div class="exam-progress"><span style="width:${pct(ex.index + 1, ex.ids.length)}%"></span></div>${questionCard(q, selected, false, 'exam')}<div class="actions"><span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="examPrev" ${ex.index === 0 ? 'disabled' : ''}>← Попереднє</button>${ex.index === ex.ids.length - 1 ? `<button class="button primary" id="finishExam" >Завершити екзамен</button>` : `<button class="button primary" id="examNext" >Далі →</button>`}</div></section></div></main>`);
 
     bindQuestionOptions(q, 'exam', false);
     document.querySelectorAll('[data-eidx]').forEach(button => {
       button.onclick = () => {
         const target = Number(button.dataset.eidx);
-        if (target <= ex.index || complete(q, selected)) {
+        if (target >= 0 && target < ex.ids.length) {
           ex.index = target;
           save();
           render();
@@ -468,7 +491,7 @@
     };
     const next = document.getElementById('examNext');
     if (next) next.onclick = () => {
-      if (canNext) {
+      if (ex.index < ex.ids.length - 1) {
         ex.index += 1;
         save();
         render();
@@ -483,12 +506,7 @@
     const ex = local.exam;
     if (!ex) return;
     const map = byId();
-    for (const id of ex.ids) {
-      if (!complete(map.get(id), ex.answers[id] || [])) {
-        alert('Спочатку дай повну відповідь на всі питання.');
-        return;
-      }
-    }
+
     let correct = 0;
     const review = ex.ids.map(id => {
       const q = map.get(id);
