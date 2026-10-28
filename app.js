@@ -114,7 +114,8 @@
   }
 
   function byId() {
-    return new Map(questions().map(question => [question.id, question]));
+    const source = ['exam','result'].includes(state.view) && bs().exam?.questionSnapshots ? bs().exam.questionSnapshots : questions();
+    return new Map(source.map(question => [question.id, question]));
   }
 
   function escapeHtml(value) {
@@ -489,7 +490,7 @@
     let ids = questions().map(question => question.id);
     if (shuffle) shuffleArray(ids);
     ids = ids.slice(0, local.examSize);
-    local.exam = { uuid: crypto.randomUUID(), ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
+    local.exam = { uuid: crypto.randomUUID(), questionSnapshots: structuredClone(questions().filter(q=>ids.includes(q.id))), ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
     state.view = 'exam';
     save();
     render();
@@ -559,7 +560,7 @@
     const result = {
       correct,
       total: ex.ids.length,
-      score: pct(correct, ex.ids.length),
+      score: +(100*correct/ex.ids.length).toFixed(2),
       review,
       finishedAt: new Date().toISOString(),
     };
@@ -583,29 +584,21 @@
   }
 
   function renderResult() {
-    const local = bs();
-    const ex = local.exam;
-    const result = ex?.result;
-    if (!result) {
-      state.view = 'home';
-      return render();
-    }
-    const map = byId();
-    $app.innerHTML = shell(`<main class="page"><section class="panel"><span class="eyebrow">${escapeHtml(bank().title)} · Exam result</span><div class="score-big">${result.score}%</div><div class="summary-grid"><div class="metric"><strong>${result.correct}</strong><span>правильно</span></div><div class="metric"><strong>${result.total - result.correct}</strong><span>помилок</span></div><div class="metric"><strong>${result.total}</strong><span>питань</span></div><div class="metric"><strong>${summaryStats().best}%</strong><span>кращий результат</span></div></div><div class="actions"><button class="button primary" id="retryExam">Новий екзамен</button><button class="button" id="studyMistakes">Вчити помилки</button><button class="button" data-home>На головну</button></div><div class="review-list">${result.review.map(item => { const q = map.get(item.id); return `<div class="review-item ${item.ok ? 'ok' : 'bad'}"><h4>#${item.id} · ${item.ok ? '✓ правильно' : '✕ помилка'}</h4><p>${escapeHtml(q.text)}</p>${!item.ok ? `<p>Твоя: <b>${item.selected.join(', ') || '—'}</b> · Правильна: <b>${item.correct.join(', ')}</b></p>` : ''}</div>`; }).join('')}</div></section></main>`);
-    document.getElementById('retryExam').onclick = () => {
-      local.exam = null;
-      state.view = 'examSetup';
-      save();
-      render();
-    };
-    document.getElementById('studyMistakes').onclick = () => {
-      local.exam = null;
-      local.filter = 'wrong';
-      state.view = 'study';
-      const first = questions().find(question => local.statistics.attempts?.[question.id]?.wrong > 0);
-      if (first) local.studyId = first.id;
-      save();
-      render();
+    const ex=bs().exam,result=ex?.result;
+    if(!result){state.view='home';return render();}
+    const map=byId(), filter=state.reviewFilter||'all';
+    const items=result.review.filter(r=>filter==='all'||(filter==='correct'?r.ok:!r.ok));
+    $app.innerHTML=shell(`<main class="page"><section class="panel"><h1>Exam Review · ${escapeHtml(bank().product)}</h1><div class="score-big">${result.score}%</div><p>${result.correct} correct / ${result.total} questions</p><div class="actions"><button class="button" data-review-filter="all">All</button><button class="button" data-review-filter="correct">Correct</button><button class="button" data-review-filter="incorrect">Incorrect</button><button class="button primary" id="retryIncorrect" ${result.correct===result.total?'disabled':''}>Retry incorrect questions</button><button class="button" data-home>Home</button></div>${items.map(item=>{
+      const q=map.get(item.id);
+      return `<section class="review-item ${item.ok?'ok':'bad'}"><h3>${item.ok?'✅ Correct':'❌ Incorrect'}</h3>${questionCard(q,item.selected,true,'exam')}<p>Your answer: ${displayAnswers(q,item.selected,'exam')||'—'}</p><p>Correct answer: ${displayAnswers(q,item.correct,'exam')}</p></section>`;
+    }).join('')}</section></main>`);
+    document.querySelectorAll('[data-review-filter]').forEach(b=>b.onclick=()=>{state.reviewFilter=b.dataset.reviewFilter;render();});
+    document.querySelectorAll('[data-zoom]').forEach(img=>img.onclick=()=>{$dialogImg.src=img.src;$dialog.showModal();});
+    document.getElementById('retryIncorrect').onclick=()=>{
+      const ids=result.review.filter(r=>!r.ok).map(r=>r.id);if(!ids.length)return;
+      bs().exam={uuid:crypto.randomUUID(),ids,index:0,answers:{},optionOrders:{},questionSnapshots:structuredClone(ids.map(id=>map.get(id))),
+        mode:'practice',shuffleQuestions:false,shuffleAnswers:ex.shuffleAnswers,startedAt:new Date().toISOString(),finished:false,result:null};
+      state.reviewFilter='all';state.view='exam';save();render();
     };
   }
 
@@ -723,5 +716,6 @@
     return values;
   }
 
+  db.from('profiles').update({last_seen_at:new Date().toISOString()}).eq('id',userId).then(()=>{});
   render();
 })();
