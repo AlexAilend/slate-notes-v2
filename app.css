@@ -13,3 +13,5 @@ button:disabled{cursor:not-allowed;opacity:.5}.shell{min-height:100vh}.topbar{he
 .top-actions{flex-wrap:wrap;gap:8px}.review-item .question-card{box-shadow:none}.review-item input{pointer-events:none}
 #customCount{width:100%;padding:12px;border:1px solid #ccd4df;border-radius:8px;margin:10px 0}
 @media(max-width:700px){.topbar{flex-direction:column;align-items:flex-start}.top-actions{width:100%}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.metric strong{overflow-wrap:anywhere;font-size:22px}.toolbar{flex-wrap:wrap}}
+.topbar{height:auto;min-height:68px;gap:14px;padding-top:12px;padding-bottom:12px;flex-wrap:wrap}.top-actions{flex:1;justify-content:flex-end;min-width:0}.top-actions span{overflow-wrap:anywhere}.metric{min-width:0}.metric strong{overflow-wrap:anywhere;font-size:22px}.exam-setup label{display:block;margin-top:12px}
+@media(max-width:700px){.topbar{position:static}.top-actions{justify-content:flex-start}.top-actions .button{padding:8px 10px;font-size:13px}.question-top{flex-wrap:wrap}.option{overflow-wrap:anywhere}.review-item{padding:8px}.review-item .question-card{padding:12px}.toolbar input{min-width:0;width:100%}}

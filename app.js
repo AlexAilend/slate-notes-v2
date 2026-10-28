@@ -472,7 +472,8 @@
     const choices = [...new Set([10, 20, 40, total].filter(value => value <= total))];
     if (!Number.isInteger(local.examSize) || local.examSize < 1 || local.examSize > total) local.examSize = Math.min(20, total);
 
-    $app.innerHTML = shell(`<main class="page"><div class="exam-setup"><button class="button" data-home>← Головна</button><section class="panel" style="margin-top:14px"><span class="eyebrow">${escapeHtml(bank().title)}</span><h1 style="font-size:30px">Налаштування екзамену</h1><p class="muted">Оберіть кількість питань і налаштування. Відповіді приховані до завершення.</p><div class="choice-grid">${choices.map(count => `<button class="count-choice ${local.examSize === count ? 'active' : ''}" data-count="${count}">${count === total ? `Full ${total}` : count}</button>`).join('')}</div><label>Custom questions (1–${total}): <input id="customCount" type="number" min="1" max="${total}" step="1" value="${local.examSize}"></label><p id="setupError" role="alert"></p><label><input type="checkbox" id="shuffleExam" checked> Перемішати питання</label><label><input type="checkbox" id="shuffleAnswers"> Shuffle answers</label><button class="button primary wide" id="startExam" style="margin-top:20px">Почати екзамен</button></section></div></main>`);
+    $app.innerHTML = shell(`<main class="page"><div class="exam-setup"><button class="button" data-home>← Головна</button><section class="panel" style="margin-top:14px"><span class="eyebrow">${escapeHtml(bank().title)}</span><h1 style="font-size:30px">Налаштування екзамену</h1><label>Question bank<select class="select" id="examBank">${banks.map(b=>`<option value="${b.id}" ${b.id===state.activeBankId?'selected':''}>${escapeHtml(b.product)} · ${b.questions.length} questions</option>`).join('')}</select></label><p class="muted">Оберіть кількість питань і налаштування. Відповіді приховані до завершення.</p><div class="choice-grid">${choices.map(count => `<button class="count-choice ${local.examSize === count ? 'active' : ''}" data-count="${count}">${count === total ? `Full ${total}` : count}</button>`).join('')}</div><label>Custom questions (1–${total}): <input id="customCount" type="number" min="1" max="${total}" step="1" value="${local.examSize}"></label><p id="setupError" role="alert"></p><label><input type="checkbox" id="shuffleExam" checked> Перемішати питання</label><label><input type="checkbox" id="shuffleAnswers"> Shuffle answers</label><button class="button primary wide" id="startExam" style="margin-top:20px">Почати екзамен</button></section></div></main>`);
+    document.getElementById('examBank').onchange=e=>{state.activeBankId=e.target.value;save();render();};
     document.querySelectorAll('[data-count]').forEach(button => {
       button.onclick = () => {
         local.examSize = Number(button.dataset.count);
@@ -681,7 +682,11 @@
       cloudPage('Admin',`<p>Total users: ${profiles.length} · Active users: ${profiles.filter(p=>p.active).length}</p>`+metricCards(rows)+profiles.map(p=>{
         const m=metrics(rows.filter(r=>r.user_id===p.id));return `<button class="button history-row" data-user="${p.id}">${escapeHtml(p.display_name||p.email)} · Tests ${m.tests} · Questions ${m.total} · Accuracy ${m.accuracy}% · Average ${m.average}% · Best ${m.best}% · Last ${escapeHtml(m.last)}</button>`;
       }).join(''));
-      document.querySelectorAll('[data-user]').forEach(b=>b.onclick=()=>renderHistory(b.dataset.user));
+      document.querySelectorAll('[data-user]').forEach(b=>b.onclick=()=>{
+        const p=profiles.find(p=>p.id===b.dataset.user);
+        cloudPage('User details',`<h2>${escapeHtml(p.display_name||p.email)}</h2><p>Email: ${escapeHtml(p.email)}</p><p>Role: ${escapeHtml(p.role)} · Active: ${p.active}</p><p>Created: ${escapeHtml(p.created_at)}</p><p>Last activity: ${escapeHtml(p.last_seen_at||'—')}</p>${metricCards(rows.filter(r=>r.user_id===p.id))}<button class="button" id="userHistory">Exam history</button>`);
+        document.getElementById('userHistory').onclick=()=>renderHistory(p.id);
+      });
     }catch(e){cloudPage('Admin',escapeHtml(e.message));}
   }
 
