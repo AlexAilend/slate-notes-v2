@@ -1,0 +1,20 @@
+name: Supabase read-only health check
+on:
+  schedule:
+    - cron: '17 */8 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  health:
+    if: github.repository == 'AlexAilend/slate-notes-v2'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read Auth health endpoint
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_PUBLISHABLE_KEY"
+          curl --fail --silent --show-error --max-time 20 --retry 2 \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/health" >/dev/null

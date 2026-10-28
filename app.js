@@ -86,6 +86,9 @@
     const {error} = await db.rpc('finish_exam',{p_id:ex.uuid,p_snapshot:ex,p_answers:records,
       p_correct:ex.result.correct,p_score:ex.result.score,p_duration:duration});
     if (error) throw error;
+    const saved = await db.from('exam_attempts').select('snapshot').eq('id',ex.uuid).single();
+    if (saved.error) throw saved.error;
+    Object.assign(bs().exam,saved.data.snapshot);
   }
 
   function bank() {
@@ -567,6 +570,7 @@
     ex.result = result;
     try {
       await persistFinished({...ex, finished:true});
+      Object.assign(result, ex.result);
     } catch (error) {
       alert('Exam not saved. Your answers are retained. Please retry Finish. ' + error.message); return;
     }

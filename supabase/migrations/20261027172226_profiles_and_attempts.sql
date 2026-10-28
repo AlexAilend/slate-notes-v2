@@ -55,7 +55,7 @@ alter table public.exam_answers enable row level security;
 revoke all on public.exam_attempts, public.exam_answers from anon,authenticated;
 grant select on public.exam_attempts to authenticated;
 grant insert(id,user_id,bank_id,mode,started_at,total_questions,shuffle_questions,shuffle_answers,snapshot) on public.exam_attempts to authenticated;
-grant update(bank_id,mode,started_at,total_questions,shuffle_questions,shuffle_answers,snapshot) on public.exam_attempts to authenticated;
+grant update(id,user_id,bank_id,mode,started_at,total_questions,shuffle_questions,shuffle_answers,snapshot) on public.exam_attempts to authenticated;
 grant select on public.exam_answers to authenticated;
 create policy attempts_read on public.exam_attempts for select to authenticated using(private.actor_role() is not null and (user_id=(select auth.uid()) or private.actor_role()='admin'));
 create policy attempts_insert on public.exam_attempts for insert to authenticated with check(user_id=(select auth.uid()) and private.actor_role() is not null);
