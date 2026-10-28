@@ -75,6 +75,7 @@
     });
   }
   async function persistFinished(ex) {
+    queueActive(bs().exam, state.activeBankId);
     await cloudQueue;
     if (cloudError) throw new Error(cloudError);
     const duration = Math.max(0, Math.round((new Date(ex.result.finishedAt)-new Date(ex.startedAt))/1000));
@@ -488,6 +489,11 @@
     };
   }
 
+  function newAttemptId() {
+    const bytes=crypto.getRandomValues(new Uint8Array(16)); bytes[6]=(bytes[6]&15)|64; bytes[8]=(bytes[8]&63)|128;
+    const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  }
   function validCount(count,total) { return Number.isInteger(count) && count>=1 && count<=total; }
   function selectQuestions(source,count,shuffle) {
     if(!validCount(count,source.length)) throw new Error('Invalid question count');
@@ -496,7 +502,7 @@
   function startExam(shuffle) {
     const local = bs();
     const ids = selectQuestions(questions(),local.examSize,shuffle);
-    local.exam = { uuid: crypto.randomUUID(), questionSnapshots: structuredClone(questions().filter(q=>ids.includes(q.id))), ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
+    local.exam = { uuid: newAttemptId(), questionSnapshots: structuredClone(questions().filter(q=>ids.includes(q.id))), ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
     state.view = 'exam';
     save();
     render();
@@ -551,7 +557,8 @@
   async function finishExam() {
     const local = bs();
     const ex = local.exam;
-    if (!ex) return;
+    if (!ex || ex.finished || ex.finishing) return;
+    ex.finishing = true;
     const map = byId();
 
     let correct = 0;
@@ -560,7 +567,6 @@
       const selected = ex.answers[id] || [];
       const ok = sameAnswer(q, selected);
       if (ok) correct += 1;
-      recordAttempt(id, ok);
       return { id, selected, correct: q.answer, ok };
     });
     const result = {
@@ -575,9 +581,12 @@
       await persistFinished({...ex, finished:true});
       Object.assign(result, ex.result);
     } catch (error) {
+      ex.finishing = false;
       alert('Exam not saved. Your answers are retained. Please retry Finish. ' + error.message); return;
     }
     ex.finished = true;
+    delete ex.finishing;
+    result.review.forEach(item => recordAttempt(item.id, item.ok));
     local.statistics.exams.push({
       uuid: ex.uuid, snapshot: structuredClone(ex), score: result.score,
       correct: result.correct,
@@ -603,7 +612,7 @@
     document.querySelectorAll('[data-zoom]').forEach(img=>img.onclick=()=>{$dialogImg.src=img.src;$dialog.showModal();});
     document.getElementById('retryIncorrect').onclick=()=>{
       const ids=result.review.filter(r=>!r.ok).map(r=>r.id);if(!ids.length)return;
-      bs().exam={uuid:crypto.randomUUID(),ids,index:0,answers:{},optionOrders:{},questionSnapshots:structuredClone(ids.map(id=>map.get(id))),
+      bs().exam={uuid:newAttemptId(),ids,index:0,answers:{},optionOrders:{},questionSnapshots:structuredClone(ids.map(id=>map.get(id))),
         mode:'practice',shuffleQuestions:false,shuffleAnswers:ex.shuffleAnswers,startedAt:new Date().toISOString(),finished:false,result:null};
       state.reviewFilter='all';state.view='exam';save();render();
     };
