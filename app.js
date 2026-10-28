@@ -5,6 +5,10 @@
   if (!banks.length) throw new Error('Question banks not loaded');
 
   const bankMap = new Map(banks.map(bank => [bank.id, bank]));
+  const db = window.SLATE_AUTH.client;
+  const userId = window.SLATE_AUTH.user.id;
+  let cloudQueue = Promise.resolve();
+  let cloudError = '';
   const STORAGE_KEY = 'slate-v2-' + window.SLATE_AUTH.user.id;
   const $app = document.getElementById('app');
   const $dialog = document.getElementById('imageDialog');
@@ -51,6 +55,37 @@
 
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const current = state.bankState[state.activeBankId]?.exam;
+    if (current && !current.finished) queueActive(current, state.activeBankId);
+  }
+
+  function attemptRow(ex, bankId) {
+    return {id: ex.uuid, user_id: userId, bank_id: bankId, mode: ex.mode || 'exam',
+      started_at: ex.startedAt, total_questions: ex.ids.length,
+      shuffle_questions: Boolean(ex.shuffleQuestions), shuffle_answers: Boolean(ex.shuffleAnswers), snapshot: ex};
+  }
+  function queueActive(ex, bankId) {
+    if (!ex.uuid) return;
+    const row = structuredClone(attemptRow(ex, bankId));
+    cloudQueue = cloudQueue.catch(() => {}).then(async () => {
+      const {error} = await db.from('exam_attempts').upsert(row);
+      cloudError = error ? error.message : '';
+      const status = document.getElementById('cloudStatus');
+      if (status) status.textContent = cloudError ? 'Not synced: ' + cloudError : 'Saved';
+    });
+  }
+  async function persistFinished(ex) {
+    await cloudQueue;
+    if (cloudError) throw new Error(cloudError);
+    const duration = Math.max(0, Math.round((new Date(ex.result.finishedAt)-new Date(ex.startedAt))/1000));
+    const records = ex.ids.map((id,index) => {
+      const q = byId().get(id); return {question_id:id,question_order:index,
+        selected_answers:ex.answers[id]||[],correct_answers:q.answer,is_correct:sameAnswer(q,ex.answers[id]||[]),
+        option_order:ex.optionOrders[id]||Object.keys(q.options),question_snapshot:q};
+    });
+    const {error} = await db.rpc('finish_exam',{p_id:ex.uuid,p_snapshot:ex,p_answers:records,
+      p_correct:ex.result.correct,p_score:ex.result.score,p_duration:duration});
+    if (error) throw error;
   }
 
   function bank() {
@@ -125,7 +160,7 @@
           <span class="brand-mark">S</span>
           <span><b>Slate Workspace</b><small>Fortinet Exam Platform</small></span>
         </button>
-        <div class="top-actions"><span>${escapeHtml(window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email)}</span><button class="button" id="logout">Logout</button>
+        <div class="top-actions"><span id="cloudStatus">${escapeHtml(cloudError ? "Not synced: " + cloudError : "Saved")}</span><button class="button" data-view="history">History</button><button class="button" data-view="stats">Statistics</button><button class="button" data-view="profile">Profile</button>${window.SLATE_AUTH.profile.role === "admin" ? '<button class="button" data-view="admin">Admin</button>' : ''}<span>${escapeHtml(window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email)}</span><button class="button" id="logout">Logout</button>
           <span class="pill">${escapeHtml(current.product)}</span>
           <span class="muted">${current.questionCount} питань</span>
         </div>
@@ -141,11 +176,15 @@
     else if (state.view === 'examSetup') renderExamSetup();
     else if (state.view === 'exam') renderExam();
     else if (state.view === 'result') renderResult();
-    else if (state.view === 'stats') renderStats();
+    else if (state.view === 'stats') renderCloudStats();
+    else if (state.view === 'history') renderHistory();
+    else if (state.view === 'profile') renderProfile();
+    else if (state.view === 'admin') renderAdmin();
     bindGlobal();
   }
 
   function bindGlobal() {
+    document.querySelectorAll('[data-view]').forEach(b => b.onclick=()=>{state.view=b.dataset.view;render();});
     document.getElementById('logout').onclick = async () => { const {error} = await window.SLATE_AUTH.client.auth.signOut(); if (error) alert(error.message); };
     document.querySelectorAll('[data-home]').forEach(button => {
       button.onclick = () => {
@@ -450,7 +489,7 @@
     let ids = questions().map(question => question.id);
     if (shuffle) shuffleArray(ids);
     ids = ids.slice(0, local.examSize);
-    local.exam = { ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
+    local.exam = { uuid: crypto.randomUUID(), ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
     state.view = 'exam';
     save();
     render();
@@ -502,7 +541,7 @@
     if (finish) finish.onclick = finishExam;
   }
 
-  function finishExam() {
+  async function finishExam() {
     const local = bs();
     const ex = local.exam;
     if (!ex) return;
@@ -524,10 +563,15 @@
       review,
       finishedAt: new Date().toISOString(),
     };
-    ex.finished = true;
     ex.result = result;
+    try {
+      await persistFinished({...ex, finished:true});
+    } catch (error) {
+      alert('Exam not saved. Your answers are retained. Please retry Finish. ' + error.message); return;
+    }
+    ex.finished = true;
     local.statistics.exams.push({
-      score: result.score,
+      uuid: ex.uuid, snapshot: structuredClone(ex), score: result.score,
       correct: result.correct,
       total: result.total,
       startedAt: ex.startedAt,
@@ -563,6 +607,72 @@
       save();
       render();
     };
+  }
+
+  async function allRows(table, build) {
+    const rows=[];
+    for (let offset=0;;offset+=500) {
+      let q=db.from(table).select('*').range(offset,offset+499);
+      if(build) q=build(q);
+      const {data,error}=await q; if(error) throw error;
+      rows.push(...data); if(data.length<500) return rows;
+    }
+  }
+  function metrics(rows) {
+    const done=rows.filter(r=>r.finished_at), n=done.length;
+    const total=done.reduce((s,r)=>s+r.total_questions,0), correct=done.reduce((s,r)=>s+r.correct_answers,0);
+    return {tests:n,total,correct,wrong:total-correct,accuracy:total?+(100*correct/total).toFixed(2):0,
+      average:n?+(done.reduce((s,r)=>s+Number(r.score_percent),0)/n).toFixed(2):0,
+      best:n?Math.max(...done.map(r=>Number(r.score_percent))):0,
+      duration:n?Math.round(done.reduce((s,r)=>s+r.duration_seconds,0)/n):0,
+      last:done.map(r=>r.finished_at).sort().at(-1)||'—'};
+  }
+  function metricCards(rows) {
+    const m=metrics(rows);
+    return '<div class="summary-grid">'+Object.entries(m).map(([k,v])=>`<div class="metric"><strong>${escapeHtml(v)}</strong><span>${escapeHtml(k)}</span></div>`).join('')+'</div>';
+  }
+  function cloudPage(title,inner) {
+    $app.innerHTML=shell(`<main class="page"><section class="panel"><h1>${escapeHtml(title)}</h1>${inner}</section></main>`); bindGlobal();
+  }
+  async function renderHistory(owner=userId) {
+    cloudPage('History','Loading…');
+    try {
+      const rows=await allRows('exam_attempts',q=>q.eq('user_id',owner).order('started_at',{ascending:false}).order('id'));
+      if(state.view!=='history'&&state.view!=='admin')return;
+      cloudPage('History',rows.map(r=>`<button class="button history-row" data-attempt="${r.id}">${escapeHtml(bankMap.get(r.bank_id)?.product || r.bank_id)} · ${new Date(r.started_at).toLocaleString()} · ${r.total_questions} questions · ${r.finished_at ? `${r.correct_answers} correct · ${r.score_percent}% · ${Math.round(r.duration_seconds/60)} min` : 'Resume Exam'}</button>`).join('')||'No attempts yet.');
+      document.querySelectorAll('[data-attempt]').forEach(b=>b.onclick=()=>{
+        const row=rows.find(r=>r.id===b.dataset.attempt);
+        if(!row.finished_at && owner!==userId){alert('This attempt is still in progress.');return;}
+        state.activeBankId=row.bank_id;bs().exam={...row.snapshot,finished:Boolean(row.finished_at)};
+        state.view=row.finished_at?'result':'exam';render();
+      });
+    } catch(e){cloudPage('History',escapeHtml(e.message));}
+  }
+  async function renderCloudStats() {
+    cloudPage('Statistics','Loading…');
+    try {
+      const rows=await allRows('exam_attempts',q=>q.eq('user_id',userId).order('id'));
+      if(state.view!=='stats')return;
+      cloudPage('Statistics',metricCards(rows)+banks.map(b=>`<h2>${escapeHtml(b.product)}</h2>${metricCards(rows.filter(r=>r.bank_id===b.id))}`).join(''));
+    }catch(e){cloudPage('Statistics',escapeHtml(e.message));}
+  }
+  async function renderProfile() {
+    const p=window.SLATE_AUTH.profile;
+    cloudPage('Profile',Object.entries({email:p.email,name:p.display_name,role:p.role,created:p.created_at,last_activity:p.last_seen_at}).map(([k,v])=>`<p>${escapeHtml(k)}: ${escapeHtml(v)}</p>`).join(''));
+    try{const rows=await allRows('exam_attempts',q=>q.eq('user_id',userId).order('id'));if(state.view==='profile'){$app.querySelector('.panel').insertAdjacentHTML('beforeend',metricCards(rows));}}catch(e){alert(e.message);}
+  }
+  async function renderAdmin() {
+    if(window.SLATE_AUTH.profile.role!=='admin'){cloudPage('Admin','Access denied');return;}
+    cloudPage('Admin','Loading…');
+    try{
+      const profiles=await allRows('profiles',q=>q.order('id'));
+      const rows=await allRows('exam_attempts',q=>q.order('id'));
+      if(state.view!=='admin')return;
+      cloudPage('Admin',`<p>Total users: ${profiles.length} · Active users: ${profiles.filter(p=>p.active).length}</p>`+metricCards(rows)+profiles.map(p=>{
+        const m=metrics(rows.filter(r=>r.user_id===p.id));return `<button class="button history-row" data-user="${p.id}">${escapeHtml(p.display_name||p.email)} · Tests ${m.tests} · Questions ${m.total} · Accuracy ${m.accuracy}% · Average ${m.average}% · Best ${m.best}% · Last ${escapeHtml(m.last)}</button>`;
+      }).join(''));
+      document.querySelectorAll('[data-user]').forEach(b=>b.onclick=()=>renderHistory(b.dataset.user));
+    }catch(e){cloudPage('Admin',escapeHtml(e.message));}
   }
 
   function recordAttempt(id, ok) {
