@@ -5,7 +5,7 @@
   if (!banks.length) throw new Error('Question banks not loaded');
 
   const bankMap = new Map(banks.map(bank => [bank.id, bank]));
-  const STORAGE_KEY = 'slate-combined-v1';
+  const STORAGE_KEY = 'slate-v2-local';
   const $app = document.getElementById('app');
   const $dialog = document.getElementById('imageDialog');
   const $dialogImg = document.getElementById('imageDialogImg');
@@ -401,9 +401,9 @@
     const local = bs();
     const total = questions().length;
     const choices = [...new Set([10, 20, 40, total].filter(value => value <= total))];
-    if (!choices.includes(local.examSize)) local.examSize = Math.min(20, total);
+    if (!Number.isInteger(local.examSize) || local.examSize < 1 || local.examSize > total) local.examSize = Math.min(20, total);
 
-    $app.innerHTML = shell(`<main class="page"><div class="exam-setup"><button class="button" data-home>← Головна</button><section class="panel" style="margin-top:14px"><span class="eyebrow">${escapeHtml(bank().title)}</span><h1 style="font-size:30px">Налаштування екзамену</h1><p class="muted">Питання перемішуються. Поки не вибрано рівно потрібну кількість відповідей, перейти далі не можна.</p><div class="choice-grid">${choices.map(count => `<button class="count-choice ${local.examSize === count ? 'active' : ''}" data-count="${count}">${count === total ? `Full ${total}` : count}</button>`).join('')}</div><label><input type="checkbox" id="shuffleExam" checked> Перемішати питання</label><button class="button primary wide" id="startExam" style="margin-top:20px">Почати екзамен</button></section></div></main>`);
+    $app.innerHTML = shell(`<main class="page"><div class="exam-setup"><button class="button" data-home>← Головна</button><section class="panel" style="margin-top:14px"><span class="eyebrow">${escapeHtml(bank().title)}</span><h1 style="font-size:30px">Налаштування екзамену</h1><p class="muted">Оберіть кількість питань і налаштування. Відповіді приховані до завершення.</p><div class="choice-grid">${choices.map(count => `<button class="count-choice ${local.examSize === count ? 'active' : ''}" data-count="${count}">${count === total ? `Full ${total}` : count}</button>`).join('')}</div><label>Custom questions (1–${total}): <input id="customCount" type="number" min="1" max="${total}" step="1" value="${local.examSize}"></label><p id="setupError" role="alert"></p><label><input type="checkbox" id="shuffleExam" checked> Перемішати питання</label><button class="button primary wide" id="startExam" style="margin-top:20px">Почати екзамен</button></section></div></main>`);
     document.querySelectorAll('[data-count]').forEach(button => {
       button.onclick = () => {
         local.examSize = Number(button.dataset.count);
@@ -411,7 +411,14 @@
         render();
       };
     });
-    document.getElementById('startExam').onclick = () => startExam(document.getElementById('shuffleExam').checked);
+    document.getElementById('startExam').onclick = () => {
+      const count = Number(document.getElementById('customCount').value);
+      if (!Number.isInteger(count) || count < 1 || count > total) {
+        document.getElementById('setupError').textContent = `Enter a whole number from 1 to ${total}.`; return;
+      }
+      local.examSize = count;
+      startExam(document.getElementById('shuffleExam').checked);
+    };
   }
 
   function startExam(shuffle) {
