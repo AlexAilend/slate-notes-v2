@@ -8,6 +8,7 @@
     auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'slate-v2-auth'}
   });
   let started = false;
+  let opening = false;
   async function open(session) {
     if (!session) {
       if (started) { location.reload(); return; }
@@ -26,8 +27,10 @@
         button.disabled = false;
       }; return;
     }
-    if (started) return;
+    if (started || opening) return;
+    opening = true;
     const {data: profile, error} = await client.from('profiles').select('*').eq('id',session.user.id).single();
+    opening = false;
     if (error || !profile?.active) { app.textContent = 'Profile unavailable or inactive. Contact the administrator.'; return; }
     started = true;
     window.SLATE_AUTH = {client, user: session.user, profile};

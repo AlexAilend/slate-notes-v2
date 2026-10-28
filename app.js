@@ -164,13 +164,13 @@
           <span class="brand-mark">S</span>
           <span><b>Slate Workspace</b><small>Fortinet Exam Platform</small></span>
         </button>
-        <div class="top-actions"><span id="cloudStatus">${escapeHtml(cloudError ? "Not synced: " + cloudError : "Saved")}</span><button class="button" data-view="history">History</button><button class="button" data-view="stats">Statistics</button><button class="button" data-view="profile">Profile</button>${window.SLATE_AUTH.profile.role === "admin" ? '<button class="button" data-view="admin">Admin</button>' : ''}<span>${escapeHtml(window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email)}</span><button class="button" id="logout">Logout</button>
+        <div class="top-actions"><button class="button" data-view="home">Home</button><button class="button" data-view="study">Study</button><button class="button" data-view="examSetup">Exam</button><span id="cloudStatus">${escapeHtml(cloudError ? "Not synced: " + cloudError : "Saved")}</span><button class="button" data-view="history">History</button><button class="button" data-view="stats">Statistics</button><button class="button" data-view="profile">Profile</button>${window.SLATE_AUTH.profile.role === "admin" ? '<button class="button" data-view="admin">Admin</button>' : ''}<span>${escapeHtml(window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email)}</span><button class="button" id="logout">Logout</button>
           <span class="pill">${escapeHtml(current.product)}</span>
           <span class="muted">${current.questionCount} питань</span>
         </div>
       </header>
       ${inner}
-      <footer class="footer">Slate Combined · FortiOS 7.6 Administrator + FortiSIEM Practice Exam · прогрес зберігається локально у браузері.</footer>
+      <footer class="footer">Slate Combined · FortiOS 7.6 Administrator + FortiSIEM Practice Exam · історія екзаменів зберігається у вашому обліковому записі.</footer>
     </div>`;
   }
 
@@ -516,7 +516,7 @@
     const selected = ex.answers[id] || [];
     const canNext = complete(q, selected);
 
-    $app.innerHTML = shell(`<main class="page"><div class="workspace"><aside class="side-card"><h3>${escapeHtml(bank().product)} Exam</h3><div class="question-grid">${ex.ids.map((questionId, index) => `<button class="qdot ${index === ex.index ? 'current' : ''} ${complete(map.get(questionId), ex.answers[questionId] || []) ? 'answered' : ''}" data-eidx="${index}">${index + 1}</button>`).join('')}</div><div class="side-stats">Відповіли: ${ex.ids.filter(questionId => complete(map.get(questionId), ex.answers[questionId] || [])).length}/${ex.ids.length}<br>Правильність прихована до Finish.</div></aside><section><div class="exam-progress"><span style="width:${pct(ex.index + 1, ex.ids.length)}%"></span></div>${questionCard(q, selected, false, 'exam')}<div class="actions"><span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="examPrev" ${ex.index === 0 ? 'disabled' : ''}>← Попереднє</button>${ex.index === ex.ids.length - 1 ? `<button class="button primary" id="finishExam" >Завершити екзамен</button>` : `<button class="button primary" id="examNext" >Далі →</button>`}</div></section></div></main>`);
+    $app.innerHTML = shell(`<main class="page"><p>Question ${ex.index+1} of ${ex.ids.length}</p><div class="workspace"><aside class="side-card"><h3>${escapeHtml(bank().product)} Exam</h3><div class="question-grid">${ex.ids.map((questionId, index) => `<button class="qdot ${index === ex.index ? 'current' : ''} ${complete(map.get(questionId), ex.answers[questionId] || []) ? 'answered' : ''}" data-eidx="${index}">${index + 1}</button>`).join('')}</div><div class="side-stats">Відповіли: ${ex.ids.filter(questionId => complete(map.get(questionId), ex.answers[questionId] || [])).length}/${ex.ids.length}<br>Правильність прихована до Finish.</div></aside><section><div class="exam-progress"><span style="width:${pct(ex.index + 1, ex.ids.length)}%"></span></div>${questionCard(q, selected, false, 'exam')}<div class="actions"><span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="examPrev" ${ex.index === 0 ? 'disabled' : ''}>← Попереднє</button>${ex.index === ex.ids.length - 1 ? `<button class="button primary" id="finishExam" >Завершити екзамен</button>` : `<button class="button primary" id="examNext" >Далі →</button>`}</div></section></div></main>`);
 
     bindQuestionOptions(q, 'exam', false);
     document.querySelectorAll('[data-eidx]').forEach(button => {
