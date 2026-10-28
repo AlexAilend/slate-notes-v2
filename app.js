@@ -5,7 +5,7 @@
   if (!banks.length) throw new Error('Question banks not loaded');
 
   const bankMap = new Map(banks.map(bank => [bank.id, bank]));
-  const STORAGE_KEY = 'slate-v2-local';
+  const STORAGE_KEY = 'slate-v2-' + window.SLATE_AUTH.user.id;
   const $app = document.getElementById('app');
   const $dialog = document.getElementById('imageDialog');
   const $dialogImg = document.getElementById('imageDialogImg');
@@ -125,7 +125,7 @@
           <span class="brand-mark">S</span>
           <span><b>Slate Workspace</b><small>Fortinet Exam Platform</small></span>
         </button>
-        <div class="top-actions">
+        <div class="top-actions"><span>${escapeHtml(window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email)}</span><button class="button" id="logout">Logout</button>
           <span class="pill">${escapeHtml(current.product)}</span>
           <span class="muted">${current.questionCount} питань</span>
         </div>
@@ -146,6 +146,7 @@
   }
 
   function bindGlobal() {
+    document.getElementById('logout').onclick = async () => { const {error} = await window.SLATE_AUTH.client.auth.signOut(); if (error) alert(error.message); };
     document.querySelectorAll('[data-home]').forEach(button => {
       button.onclick = () => {
         state.view = 'home';
