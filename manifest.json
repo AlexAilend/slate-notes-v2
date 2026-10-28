@@ -1,0 +1,17 @@
+{
+  "format": "slate-combined-v1",
+  "banks": [
+    {
+      "id": "fortios-7.6-admin",
+      "title": "FortiOS 7.6 Administrator",
+      "questions": 103,
+      "images": 50
+    },
+    {
+      "id": "fortisiem-practice-76",
+      "title": "FortiSIEM Practice Exam",
+      "questions": 76,
+      "images": 40
+    }
+  ]
+}
