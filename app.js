@@ -337,7 +337,7 @@
     return `<article class="question-card">
       <div class="question-top"><span>${escapeHtml(bank().product)} · Question ${q.id} of ${questions().length}</span><span>${isOrdering(q) ? 'Arrange in order' : q.correctCount === 1 ? 'Single answer' : `Choose ${q.correctCount}`}</span></div>
       <h2 class="question-text">${escapeHtml(q.text)}</h2>
-      ${q.note ? `<div class="exhibit-note">${escapeHtml(q.note)}</div>` : ''}
+      
       ${q.image ? `<div class="exhibit"><img src="${escapeHtml(q.image)}" data-zoom alt="Exhibit for question ${q.id}"></div>` : ''}
       <div class="instruction">${isOrdering(q) ? 'Розташуй критерії по порядку. Кожен використай один раз.' : `Вибери рівно ${q.correctCount} ${q.correctCount === 1 ? 'відповідь' : 'відповіді'}`}</div>
       <div class="options">${isOrdering(q) ? orderingHtml(q, selected, checked) : Object.entries(q.options).map(([key, value]) => optionHtml(q, key, value, selected, checked, mode)).join('')}</div>
