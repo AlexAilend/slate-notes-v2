@@ -480,7 +480,7 @@
     });
     document.getElementById('startExam').onclick = () => {
       const count = Number(document.getElementById('customCount').value);
-      if (!Number.isInteger(count) || count < 1 || count > total) {
+      if (!validCount(count,total)) {
         document.getElementById('setupError').textContent = `Enter a whole number from 1 to ${total}.`; return;
       }
       local.examSize = count;
@@ -488,11 +488,14 @@
     };
   }
 
+  function validCount(count,total) { return Number.isInteger(count) && count>=1 && count<=total; }
+  function selectQuestions(source,count,shuffle) {
+    if(!validCount(count,source.length)) throw new Error('Invalid question count');
+    const ids=source.map(q=>q.id); if(shuffle)shuffleArray(ids); return ids.slice(0,count);
+  }
   function startExam(shuffle) {
     const local = bs();
-    let ids = questions().map(question => question.id);
-    if (shuffle) shuffleArray(ids);
-    ids = ids.slice(0, local.examSize);
+    const ids = selectQuestions(questions(),local.examSize,shuffle);
     local.exam = { uuid: crypto.randomUUID(), questionSnapshots: structuredClone(questions().filter(q=>ids.includes(q.id))), ids, index: 0, answers: {}, shuffleQuestions: shuffle, shuffleAnswers: Boolean(document.getElementById("shuffleAnswers")?.checked), optionOrders: {}, startedAt: new Date().toISOString(), finished: false, result: null };
     state.view = 'exam';
     save();

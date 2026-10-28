@@ -11,7 +11,14 @@
   async function open(session) {
     if (!session) {
       if (started) { location.reload(); return; }
-      app.innerHTML = `<main class="page"><section class="panel" style="max-width:460px;margin:8vh auto"><h1>Slate Notes</h1><p>Sign in to your workspace</p><form id="login"><label>Email<input class="select" name="email" type="email" autocomplete="username" required></label><label>Password<input class="select" name="password" type="password" autocomplete="current-password" required></label><p id="loginError" role="alert"></p><button class="button primary" type="submit">Login</button></form></section></main>`;
+      app.innerHTML = `<main class="page"><section class="panel" style="max-width:460px;margin:8vh auto"><h1>Slate Notes</h1><p>Sign in to your workspace</p><form id="login"><label>Email<input class="select" name="email" type="email" autocomplete="username" required></label><label>Password<input class="select" name="password" type="password" autocomplete="current-password" required></label><p id="loginError" role="alert"></p><button class="button primary" type="submit">Login</button><button class="button" type="button" id="register">Create account</button></form></section></main>`;
+      document.getElementById('register').onclick = async () => {
+        const form=document.getElementById('login');if(!form.reportValidity())return;
+        const button=document.getElementById('register');button.disabled=true;
+        const {error}=await client.auth.signUp({email:form.email.value,password:form.password.value});
+        document.getElementById('loginError').textContent=error?error.message:'Check your email to confirm your account, then sign in.';
+        button.disabled=false;
+      };
       document.getElementById('login').onsubmit = async e => {
         e.preventDefault(); const form = e.currentTarget; const button = form.querySelector('button'); button.disabled = true;
         const {error} = await client.auth.signInWithPassword({email: form.email.value, password: form.password.value});
