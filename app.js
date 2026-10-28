@@ -9,6 +9,7 @@
   const userId = window.SLATE_AUTH.user.id;
   let cloudQueue = Promise.resolve();
   let cloudError = '';
+  let finishingExam = false;
   const STORAGE_KEY = 'slate-v2-' + window.SLATE_AUTH.user.id;
   const $app = document.getElementById('app');
   const $dialog = document.getElementById('imageDialog');
@@ -557,8 +558,8 @@
   async function finishExam() {
     const local = bs();
     const ex = local.exam;
-    if (!ex || ex.finished || ex.finishing) return;
-    ex.finishing = true;
+    if (!ex || ex.finished || finishingExam) return;
+    finishingExam = true;
     const map = byId();
 
     let correct = 0;
@@ -581,11 +582,11 @@
       await persistFinished({...ex, finished:true});
       Object.assign(result, ex.result);
     } catch (error) {
-      ex.finishing = false;
+      finishingExam = false;
       alert('Exam not saved. Your answers are retained. Please retry Finish. ' + error.message); return;
     }
     ex.finished = true;
-    delete ex.finishing;
+    finishingExam = false;
     result.review.forEach(item => recordAttempt(item.id, item.ok));
     local.statistics.exams.push({
       uuid: ex.uuid, snapshot: structuredClone(ex), score: result.score,
