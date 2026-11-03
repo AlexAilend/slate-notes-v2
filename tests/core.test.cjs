@@ -1,10 +1,10 @@
 const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
 const root=require('node:path').join(__dirname,'..');
 const storage=new Map();const node={addEventListener(){},close(){}};
-const ctx={window:{SLATE_AUTH:{user:{id:'test-user'},profile:{},client:{}}},document:{getElementById:()=>node},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},console,structuredClone};
+const ctx={window:{SLATE_AUTH:{user:{id:'test-user'},profile:{},client:{from:()=>({upsert:async()=>({error:null})})}}},document:{getElementById:()=>node},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},console,structuredClone};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync(root+'/banks.js','utf8'),ctx);
 let source=fs.readFileSync(root+'/app.js','utf8');
-source=source.slice(0,source.lastIndexOf("  db.from('profiles')"))+"globalThis.api={validCount,selectQuestions,sameAnswer,isOrdering,optionOrder,displayAnswers,bs,state,banks};})();";
+source=source.slice(0,source.lastIndexOf("  db.from('profiles')"))+"globalThis.api={validCount,selectQuestions,sameAnswer,isOrdering,optionOrder,displayAnswers,bs,state,banks,resetStudyProgress};})();";
 vm.runInContext(source,ctx);const a=ctx.api;
 for(const bank of a.banks){
  a.state.activeBankId=bank.id;
@@ -33,3 +33,27 @@ assert.equal(JSON.stringify(siem.questions.find(q=>q.id===74).answer),'["B","C"]
 assert(!source.includes('q.note'));
 for(const b of a.banks)for(const q of b.questions)if(q.image)assert(fs.existsSync(root+'/'+q.image),q.image);
 console.log('PASS: both banks, bounds, unique selection, stable shuffle, single/multi/ordering scoring, Q69/Q74, exhibits, hidden notes');
+
+const local=a.bs();
+local.studyAnswers={1:['A']};local.studyChecked={1:true};
+local.statistics.attempts={1:{attempts:1,wrong:1}};
+local.statistics.studyChecks=1;local.statistics.studyCorrect=1;
+local.statistics.exams=[{uuid:'completed',score:80}];
+local.exam={uuid:'active',finished:false,ids:[1],answers:{1:['A']},startedAt:'2026-11-03T08:00:00Z'};
+const exams=JSON.stringify(local.statistics.exams), exam=JSON.stringify(local.exam);
+const otherBank=a.banks.find(b=>b.id!==a.state.activeBankId);
+a.state.bankState[otherBank.id]={studyAnswers:{1:['B']}};
+const other=JSON.stringify(a.state.bankState[otherBank.id]);
+a.resetStudyProgress();
+assert.equal(Object.keys(local.studyAnswers).length,0);
+assert.equal(Object.keys(local.studyChecked).length,0);
+assert.equal(Object.keys(local.statistics.attempts).length,0);
+assert.equal(local.statistics.studyChecks,0);assert.equal(local.statistics.studyCorrect,0);
+assert.equal(JSON.stringify(local.statistics.exams),exams);
+assert.equal(JSON.stringify(local.exam),exam);
+assert.equal(JSON.stringify(a.state.bankState[otherBank.id]),other);
+const persisted=JSON.parse(storage.get('slate-v2-test-user')).bankState[a.state.activeBankId];
+assert.equal(JSON.stringify(persisted.exam),exam);
+assert.equal(JSON.stringify(persisted.statistics.exams),exams);
+assert.equal(Object.keys(persisted.studyAnswers).length,0);
+console.log('PASS: Study reset persists neutral progress and preserves exams, history and other bank');
