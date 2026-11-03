@@ -41,6 +41,7 @@
   }
 
   let state = loadState();
+  let studySync = null;
 
   function loadState() {
     try {
@@ -55,9 +56,132 @@
   }
 
   function save() {
+    studySync?.capture();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     const current = state.bankState[state.activeBankId]?.exam;
     if (current && !current.finished) queueActive(current, state.activeBankId);
+  }
+
+  // Study is synced independently of exams: one versioned snapshot per user and bank.
+  function createStudySync() {
+    const known = new Map();
+    let initialized = false, running = false;
+    let message = 'Синхронізація вивчення…';
+    state.studySync ||= {};
+    const meta = id => state.studySync[id] ||= { revision: 0, pending: false };
+    const persistLocal = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    function payload(id) {
+      const local = state.bankState[id] || defaultBankState(bankMap.get(id));
+      return structuredClone({
+        studyId: local.studyId, studyAnswers: local.studyAnswers, studyChecked: local.studyChecked,
+        shuffleStudy: Boolean(local.shuffleStudy), optionOrders: local.optionOrders || {},
+        attempts: local.statistics.attempts, studyChecks: local.statistics.studyChecks,
+        studyCorrect: local.statistics.studyCorrect,
+      });
+    }
+    function status(text) {
+      message = text;
+      const el = document.getElementById('studySyncStatus');
+      if (el) el.textContent = text;
+    }
+    function apply(row) {
+      const b = bankMap.get(row.bank_id);
+      if (!b) return;
+      const p = row.snapshot;
+      const local = state.bankState[b.id] ||= defaultBankState(b);
+      // Keep exam sessions and exam history untouched.
+      local.studyId = b.questions.some(q => q.id === p.studyId) ? p.studyId : b.questions[0].id;
+      local.studyAnswers = p.studyAnswers || {};
+      local.studyChecked = p.studyChecked || {};
+      local.shuffleStudy = Boolean(p.shuffleStudy);
+      local.optionOrders = p.optionOrders || {};
+      local.statistics ||= defaultBankState(b).statistics;
+      local.statistics.attempts = p.attempts || {};
+      local.statistics.studyChecks = Number(p.studyChecks) || 0;
+      local.statistics.studyCorrect = Number(p.studyCorrect) || 0;
+      local.search = ''; local.filter = 'all';
+      meta(b.id).revision = row.revision;
+      meta(b.id).pending = false;
+      known.set(b.id, JSON.stringify(payload(b.id)));
+    }
+    function capture() {
+      for (const b of banks) {
+        if (!state.bankState[b.id]) continue;
+        const text = JSON.stringify(payload(b.id));
+        if (known.get(b.id) !== text) {
+          known.set(b.id, text);
+          meta(b.id).pending = true;
+        }
+      }
+      persistLocal();
+      if (initialized) void flush();
+    }
+    async function refresh(first = false) {
+      if (running) return;
+      running = true;
+      let changed = false;
+      try {
+        const { data, error } = await db.from('study_progress')
+          .select('bank_id,snapshot,revision,updated_at').eq('user_id', userId).order('updated_at', { ascending: false });
+        if (error) throw error;
+        const rows = new Map(data.map(row => [row.bank_id, row]));
+        for (const b of banks) {
+          const row = rows.get(b.id), m = meta(b.id);
+          if (row && row.revision !== m.revision) {
+            if (m.pending) {
+              // Recoverable local copy in case offline work conflicts with another device.
+              localStorage.setItem(STORAGE_KEY + '-study-conflict-' + b.id, JSON.stringify(payload(b.id)));
+            }
+            apply(row); changed = true;
+          } else if (first && row && !m.pending) {
+            apply(row); changed = true;
+          } else if (!row && first && state.bankState[b.id]) {
+            const p = payload(b.id);
+            if (p.studyId !== b.questions[0].id || Object.keys(p.studyAnswers).length || p.studyChecks) m.pending = true;
+          }
+          if (!known.has(b.id)) known.set(b.id, JSON.stringify(payload(b.id)));
+        }
+        if (first && data.length && bankMap.has(data[0].bank_id) && !['exam','result'].includes(state.view)) {
+          state.activeBankId = data[0].bank_id;
+        }
+        initialized = true; persistLocal();
+        status('Вивчення синхронізовано');
+      } catch (error) {
+        status('Вивчення збережено на пристрої · немає синхронізації');
+      } finally { running = false; }
+      if (changed && !first && state.view === 'study') render();
+      if (initialized) await flush();
+    }
+    async function flush() {
+      if (!initialized || running) return;
+      running = true;
+      let conflict = false;
+      try {
+        for (const b of banks) {
+          const m = meta(b.id);
+          // Drain changes made while a request is in flight.
+          while (m.pending) {
+            const snapshot = payload(b.id), signature = JSON.stringify(snapshot);
+            status('Зберігаємо вивчення…');
+            const { data, error } = await db.rpc('save_study_progress', {
+              p_bank_id: b.id, p_snapshot: snapshot, p_revision: m.revision,
+            });
+            if (error) throw error;
+            if (!data?.length) { conflict = true; break; }
+            m.revision = data[0].revision;
+            m.pending = JSON.stringify(payload(b.id)) !== signature;
+            persistLocal();
+          }
+          if (conflict) break;
+        }
+        status(conflict ? 'Оновлюємо прогрес з іншого пристрою…' : 'Вивчення синхронізовано');
+      } catch (error) {
+        status('Вивчення збережено на пристрої · повторимо синхронізацію');
+      } finally { running = false; }
+      if (conflict) await refresh();
+    }
+    banks.forEach(b => { if (state.bankState[b.id]) known.set(b.id, JSON.stringify(payload(b.id))); });
+    return { capture, start: () => refresh(true), refresh, flush, payload, get message() { return message; } };
   }
 
   function attemptRow(ex, bankId) {
@@ -318,7 +442,7 @@
     const filtered = filteredStudy();
 
     $app.innerHTML = shell(`<main class="page">
-      <div class="study-heading"><div><span class="eyebrow">Навчальний простір</span><h1>Вивчення</h1></div><span class="pill">${escapeHtml(bank().product)} · ${questions().length} питань</span></div>
+      <div class="study-heading"><div><span class="eyebrow">Навчальний простір</span><h1>Вивчення</h1><small id="studySyncStatus" role="status" class="muted">${escapeHtml(studySync?.message || '')}</small></div><span class="pill">${escapeHtml(bank().product)} · ${questions().length} питань</span></div>
       <div class="toolbar study-toolbar">
         <button class="button" data-home>← Головна</button>
         <input id="studySearch" value="${escapeHtml(local.search)}" placeholder="Знайти питання або номер…">
@@ -805,5 +929,16 @@
       menu.open = false; menu.querySelector('summary').focus();
     }
   });
-  render();
+  studySync = createStudySync();
+  $app.innerHTML = '<main class="page"><p role="status">Завантажуємо ваш прогрес вивчення…</p></main>';
+  studySync.start().finally(render);
+  window.addEventListener('focus', () => { void studySync.refresh(); });
+  window.addEventListener('online', () => { void studySync.refresh(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void studySync.refresh();
+    else void studySync.flush();
+  });
+  setInterval(() => {
+    if (document.visibilityState === 'visible') void studySync.refresh();
+  }, 15000);
 })();
