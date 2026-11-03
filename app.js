@@ -313,11 +313,18 @@
     const filtered = filteredStudy();
 
     $app.innerHTML = shell(`<main class="page">
-      <div class="toolbar">
+      <div class="toolbar study-toolbar">
         <button class="button" data-home>← Головна</button>
         <input id="studySearch" value="${escapeHtml(local.search)}" placeholder="Знайти питання або номер…">
         <select id="studyFilter"><option value="all" ${local.filter === 'all' ? 'selected' : ''}>Усі</option><option value="unanswered" ${local.filter === 'unanswered' ? 'selected' : ''}>Без відповіді</option><option value="wrong" ${local.filter === 'wrong' ? 'selected' : ''}>Помилки</option></select>
-        <label><input type="checkbox" id="studyAnswerShuffle" ${local.shuffleStudy ? 'checked' : ''}> Shuffle answers</label><button class="button" id="studyShuffle">Випадкове</button><button class="button danger" id="resetStudy">Скинути вивчення</button>
+        <details class="study-menu" id="studyMenu"><summary class="button">⚙ Налаштування <span aria-hidden="true">⌄</span></summary>
+          <div class="study-menu-panel"><div class="study-menu-heading">Налаштування вивчення</div>
+            <label class="study-toggle" for="studyAnswerShuffle"><span><b>Перемішувати відповіді</b><small>Зберігає порядок під час відповіді</small></span><input type="checkbox" role="switch" id="studyAnswerShuffle" ${local.shuffleStudy ? 'checked' : ''}></label>
+            <button class="button" id="reshuffleStudy" ${!local.shuffleStudy || checked || isOrdering(q) ? 'disabled' : ''}>↻ Перемішати ще раз</button>
+            <button class="button" id="studyShuffle">⤨ Випадкове питання</button>
+            <div class="study-menu-divider"></div><button class="button danger" id="resetStudy">Скинути вивчення</button>
+            <small class="muted">Історія іспитів зберігається.</small>
+          </div></details>
       </div>
       <div class="workspace">
         <aside class="side-card"><h3>${escapeHtml(bank().product)} · ${filtered.length}</h3><div class="question-grid">${filtered.map(studyDot).join('')}</div><div class="side-stats">Study checks: ${local.statistics.studyChecks}<br>Правильно: ${local.statistics.studyCorrect}<br>Accuracy: ${pct(local.statistics.studyCorrect, local.statistics.studyChecks)}%</div></aside>
@@ -328,7 +335,15 @@
     document.getElementById('resetStudy').onclick = confirmResetStudy;
     bindQuestionOptions(q, 'study', checked);
     document.getElementById('studyAnswerShuffle').onchange = event => {
-      local.shuffleStudy = event.target.checked; local.optionOrders = {}; save(); render();
+      local.shuffleStudy = event.target.checked;
+      local.optionOrders = {};
+      if (local.shuffleStudy && !isOrdering(q)) reshuffleStudy(q);
+      save(); render();
+      document.getElementById('studyMenu').open = true;
+    };
+    document.getElementById('reshuffleStudy').onclick = () => {
+      reshuffleStudy(q); save(); render();
+      document.getElementById('studyMenu').open = true;
     };
     document.querySelectorAll('[data-qid]').forEach(button => {
       button.onclick = () => {
@@ -398,6 +413,18 @@
     render();
   }
 
+  function reshuffleStudy(q) {
+    if (isOrdering(q)) return;
+    const local = bs();
+    const previous = local.optionOrders?.[q.id] || Object.keys(q.options);
+    const next = [...previous];
+    shuffleArray(next);
+    // Random shuffles can return the same order; make this action visibly change it.
+    if (next.length > 1 && next.every((id, i) => id === previous[i])) next.push(next.shift());
+    local.optionOrders ||= {};
+    local.optionOrders[q.id] = next;
+  }
+
   function optionOrder(q, mode) {
     if (isOrdering(q)) return [];
     const local = bs();
@@ -407,7 +434,9 @@
     session.optionOrders ||= {};
     if (!session.optionOrders[q.id]) {
       session.optionOrders[q.id] = Object.keys(q.options);
-      shuffleArray(session.optionOrders[q.id]); save();
+      if (mode === 'study') reshuffleStudy(q);
+      else shuffleArray(session.optionOrders[q.id]);
+      save();
     }
     return session.optionOrders[q.id];
   }
@@ -755,5 +784,15 @@
   }
 
   db.from('profiles').update({last_seen_at:new Date().toISOString()}).eq('id',userId).then(()=>{});
+  document.addEventListener('click', event => {
+    const menu = document.getElementById('studyMenu');
+    if (menu?.open && !menu.contains(event.target)) menu.open = false;
+  });
+  document.addEventListener('keydown', event => {
+    const menu = document.getElementById('studyMenu');
+    if (event.key === 'Escape' && menu?.open) {
+      menu.open = false; menu.querySelector('summary').focus();
+    }
+  });
   render();
 })();
