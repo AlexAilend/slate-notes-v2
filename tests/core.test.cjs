@@ -4,7 +4,7 @@ const storage=new Map();const node={addEventListener(){},close(){}};
 const ctx={window:{SLATE_AUTH:{user:{id:'test-user'},profile:{},client:{from:()=>({upsert:async()=>({error:null})})}}},document:{getElementById:()=>node},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},console,structuredClone};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync(root+'/banks.js','utf8'),ctx);
 let source=fs.readFileSync(root+'/app.js','utf8');
-source=source.slice(0,source.lastIndexOf("  db.from('profiles')"))+"globalThis.api={validCount,selectQuestions,sameAnswer,isOrdering,optionOrder,displayAnswers,bs,state,banks,resetStudyProgress};})();";
+source=source.slice(0,source.lastIndexOf("  db.from('profiles')"))+"globalThis.api={validCount,selectQuestions,sameAnswer,isOrdering,optionOrder,displayAnswers,bs,state,banks,resetStudyProgress,reshuffleStudy};})();";
 vm.runInContext(source,ctx);const a=ctx.api;
 for(const bank of a.banks){
  a.state.activeBankId=bank.id;
@@ -57,3 +57,14 @@ assert.equal(JSON.stringify(persisted.exam),exam);
 assert.equal(JSON.stringify(persisted.statistics.exams),exams);
 assert.equal(Object.keys(persisted.studyAnswers).length,0);
 console.log('PASS: Study reset persists neutral progress and preserves exams, history and other bank');
+
+a.bs().shuffleStudy=true;
+const q=a.banks.find(b=>b.id===a.state.activeBankId).questions.find(q=>Object.keys(q.options).length>1);
+a.bs().studyAnswers[q.id]=[q.answer[0]];
+for(let i=0;i<30;i++){
+ const before=JSON.stringify(a.optionOrder(q,'study'));
+ a.reshuffleStudy(q);
+ assert.notEqual(JSON.stringify(a.optionOrder(q,'study')),before);
+ assert.equal(a.bs().studyAnswers[q.id][0],q.answer[0]);
+}
+console.log('PASS: repeated shuffle always changes order and preserves selected answer');
