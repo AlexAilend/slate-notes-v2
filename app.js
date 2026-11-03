@@ -166,9 +166,14 @@
           <span class="brand-mark">S</span>
           <span><b>Slate Workspace</b><small>Fortinet Exam Platform</small></span>
         </button>
-        <div class="top-actions"><button class="button" data-view="home">Home</button><button class="button" data-view="study">Study</button><button class="button" data-view="examSetup">Exam</button><span id="cloudStatus">${escapeHtml(cloudError ? "Not synced: " + cloudError : "Saved")}</span><button class="button" data-view="history">History</button><button class="button" data-view="stats">Statistics</button><button class="button" data-view="profile">Profile</button>${window.SLATE_AUTH.profile.role === "admin" ? '<button class="button" data-view="admin">Admin</button>' : ''}<span>${escapeHtml(window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email)}</span><button class="button" id="logout">Logout</button>
-          <span class="pill">${escapeHtml(current.product)}</span>
-          <span class="muted">${current.questionCount} питань</span>
+        <nav class="main-nav" aria-label="Основна навігація">
+          ${[['home','Головна'],['study','Вивчення'],['examSetup','Іспит'],['history','Історія'],['stats','Статистика']].map(([view,label])=>`<button class="nav-link ${(state.view===view || (view==='examSetup' && ['exam','result'].includes(state.view)))?'active':''}" data-view="${view}" ${state.view===view?'aria-current="page"':''}>${label}</button>`).join('')}
+        </nav>
+        <div class="header-tools">
+          <span class="sync-status" id="cloudStatus">${escapeHtml(cloudError ? "Помилка синхронізації" : "Збережено")}</span>
+          <details class="account-menu"><summary class="account-trigger" aria-label="Меню облікового запису"><span class="avatar">${escapeHtml((window.SLATE_AUTH.profile.display_name || window.SLATE_AUTH.user.email || 'U').slice(0,1).toUpperCase())}</span><span class="account-label">Мій профіль</span><span aria-hidden="true">⌄</span></summary>
+            <div class="account-panel"><span class="account-email">${escapeHtml(window.SLATE_AUTH.user.email)}</span><button class="button" data-view="profile">Профіль</button>${window.SLATE_AUTH.profile.role === 'admin'?'<button class="button" data-view="admin">Адміністрування</button>':''}<button class="button danger" id="logout">Вийти</button></div>
+          </details>
         </div>
       </header>
       ${inner}
@@ -313,6 +318,7 @@
     const filtered = filteredStudy();
 
     $app.innerHTML = shell(`<main class="page">
+      <div class="study-heading"><div><span class="eyebrow">Навчальний простір</span><h1>Вивчення</h1></div><span class="pill">${escapeHtml(bank().product)} · ${questions().length} питань</span></div>
       <div class="toolbar study-toolbar">
         <button class="button" data-home>← Головна</button>
         <input id="studySearch" value="${escapeHtml(local.search)}" placeholder="Знайти питання або номер…">
@@ -327,7 +333,7 @@
           </div></details>
       </div>
       <div class="workspace">
-        <aside class="side-card"><h3>${escapeHtml(bank().product)} · ${filtered.length}</h3><div class="question-grid">${filtered.map(studyDot).join('')}</div><div class="side-stats">Study checks: ${local.statistics.studyChecks}<br>Правильно: ${local.statistics.studyCorrect}<br>Accuracy: ${pct(local.statistics.studyCorrect, local.statistics.studyChecks)}%</div></aside>
+        <aside class="side-card"><h3>${escapeHtml(bank().product)} · ${filtered.length}</h3><div class="question-grid">${filtered.map(studyDot).join('')}</div><div class="side-stats">Перевірено: ${local.statistics.studyChecks}<br>Правильно: ${local.statistics.studyCorrect}<br>Точність: ${pct(local.statistics.studyCorrect, local.statistics.studyChecks)}%</div></aside>
         <section>${questionCard(q, selected, checked, 'study')}${checked ? `<div class="feedback ${correct ? 'ok' : 'bad'}">${correct ? '✓ Правильно' : '✕ Неправильно'}${!correct ? `. Правильна відповідь: <b>${displayAnswers(q, q.answer, 'study')}</b>` : ''}</div>` : ''}<div class="actions">${!checked ? `<button class="button primary" id="checkStudy" ${!complete(q, selected) ? 'disabled' : ''}>Перевірити</button>` : '<button class="button primary" id="nextStudy">Наступне питання →</button>'}<span class="answer-requirement">Потрібно вибрати: <b>${q.correctCount}</b></span></div><div class="nav-row"><button class="button" id="prevStudy">← Попереднє</button><button class="button" id="nextStudyNav" ${!checked ? 'disabled' : ''}>Далі →</button></div></section>
       </div>
     </main>`);
@@ -353,9 +359,12 @@
       };
     });
     document.getElementById('studySearch').oninput = event => {
+      const cursor = event.target.selectionStart;
       local.search = event.target.value;
       save();
       render();
+      const search = document.getElementById('studySearch');
+      search.focus(); search.setSelectionRange(cursor, cursor);
     };
     document.getElementById('studyFilter').onchange = event => {
       local.filter = event.target.value;
@@ -449,7 +458,7 @@
 
   function questionCard(q, selected, checked, mode) {
     return `<article class="question-card">
-      <div class="question-top"><span>${escapeHtml(bank().product)} · Question ${q.id} of ${questions().length}</span><span>${isOrdering(q) ? 'Arrange in order' : q.correctCount === 1 ? 'Single answer' : `Choose ${q.correctCount}`}</span></div>
+      <div class="question-top"><span>${escapeHtml(bank().product)} · Питання ${q.id} із ${questions().length}</span><span>${isOrdering(q) ? 'Arrange in order' : q.correctCount === 1 ? 'Одна відповідь' : `Обери ${q.correctCount}`}</span></div>
       <h2 class="question-text">${escapeHtml(q.text)}</h2>
       
       ${q.image ? `<div class="exhibit"><img src="${escapeHtml(q.image)}" data-zoom alt="Exhibit for question ${q.id}"></div>` : ''}
@@ -785,11 +794,13 @@
 
   db.from('profiles').update({last_seen_at:new Date().toISOString()}).eq('id',userId).then(()=>{});
   document.addEventListener('click', event => {
+    document.querySelectorAll('.account-menu[open]').forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
     const menu = document.getElementById('studyMenu');
     if (menu?.open && !menu.contains(event.target)) menu.open = false;
   });
   document.addEventListener('keydown', event => {
     const menu = document.getElementById('studyMenu');
+    if (event.key === 'Escape') document.querySelectorAll('.account-menu[open]').forEach(item => { item.open = false; item.querySelector('summary').focus(); });
     if (event.key === 'Escape' && menu?.open) {
       menu.open = false; menu.querySelector('summary').focus();
     }
