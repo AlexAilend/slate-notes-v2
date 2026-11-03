@@ -95,3 +95,84 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 @media(max-width:900px){.topbar{grid-template-columns:1fr auto;gap:12px}.main-nav{grid-row:2;grid-column:1/-1;justify-content:flex-start;overflow-x:auto;scrollbar-width:none}.header-tools{grid-column:2;grid-row:1}.workspace{grid-template-columns:1fr;gap:16px}.side-card{position:static;padding:14px}.question-grid{grid-template-columns:repeat(12,minmax(0,1fr));max-height:112px}.side-stats{margin-top:10px;padding-top:9px}.hero{grid-template-columns:1fr}.modes{grid-template-columns:repeat(3,minmax(0,1fr))}.mode-card{padding:18px}.mode-card p{min-height:0}}
 @media(max-width:600px){.topbar{position:static;padding:14px 16px;gap:12px}.brand small{display:none}.main-nav{gap:2px}.nav-link{font-size:12px;padding:9px 11px;min-height:40px}.page{padding:24px 14px 40px}.study-heading{margin-bottom:16px}.study-heading h1{font-size:25px}.study-heading .pill{font-size:10px;padding:6px 9px}.study-toolbar{gap:8px;padding:8px}.study-toolbar>[data-home]{display:none}.study-toolbar>input{flex:1 1 100%;width:100%;min-height:42px}.study-toolbar>select{flex:1;min-width:0}.study-menu{margin-left:auto}.study-menu-panel{max-width:calc(100vw - 48px)}.question-grid{grid-template-columns:repeat(8,minmax(0,1fr));max-height:100px}.qdot{min-height:34px}.side-stats{display:flex;flex-wrap:wrap;column-gap:12px;font-size:10px}.question-card{padding:20px 16px}.question-text{font-size:17px;line-height:1.6}.question-top{gap:10px;font-size:10px}.option{font-size:13px;padding:13px 12px;gap:9px}.exhibit{padding:7px}.nav-row .button{min-width:0;flex:1}.hero-card{padding:22px}.hero-card h1{font-size:28px}.modes{grid-template-columns:1fr}.mode-card{padding:22px}.mode-card p{margin-bottom:20px}.section-head{align-items:flex-start;flex-wrap:wrap}.panel{padding:20px 16px}.summary-grid{gap:8px}.metric{padding:14px}.account-panel{max-width:calc(100vw - 32px)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;scroll-behavior:auto!important}}
+
+/* Study workspace: wide canvas, reference and answers side by side. */
+:root{--bg:#eef1f6;--line:#dce2eb;--ink:#19263b;--muted:#617087;--accent:#4f46c8;--accent-2:#eeedfc;--shadow:0 8px 30px #24324a06}
+.topbar{max-width:none;padding:16px 3vw;min-height:78px;border-bottom:1px solid #dce2eb;gap:32px}
+.brand b{font-size:16px}.brand small{font-size:11px}.nav-link{font-size:14px;padding:11px 17px}
+.main-nav{gap:6px}.nav-link.active{background:#252f48;color:#fff}
+.header-tools{gap:20px}.account-trigger{font-size:13px}.sync-status{font-size:12px}
+.page{max-width:1760px;width:96%;padding:28px 12px 44px}
+.study-heading{margin-bottom:20px;align-items:center}
+.study-heading .eyebrow{color:var(--muted);letter-spacing:.1em}
+.study-heading h1{font-size:30px;margin-top:4px}
+.study-heading .pill{font-size:13px;padding:9px 15px}
+.study-toolbar{margin-left:0;padding:12px 14px;margin-bottom:20px;box-shadow:none;background:#fff}
+.study-toolbar>input{font-size:14px;min-height:44px;background:#f3f5f8;border:1px solid transparent}
+.study-toolbar>select{font-size:14px;min-height:44px;background:#f3f5f8}
+.button{font-size:14px;min-height:44px;padding:11px 17px}
+.workspace{grid-template-columns:250px minmax(0,1fr);gap:22px}
+.workspace>section{min-width:0}
+.side-card{padding:20px;border-radius:16px;top:100px;background:#fff}
+.side-card h3{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:18px}
+.question-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;max-height:calc(100vh - 330px);min-height:180px}
+.qdot{min-height:37px;font-size:13px;font-weight:500;border-radius:8px;background:#f7f8fb;color:#53627b;border-color:#e5e9f1}
+.qdot.current{background:#252f48;color:#fff;border-color:#252f48;box-shadow:0 0 0 3px #252f4818}
+.qdot.correct{background:#e7f4ed;color:#176b49;border-color:#cae4d5}
+.qdot.wrong{background:#fbecec;color:#a63838;border-color:#efcfcf}
+.side-stats{font-size:12px;line-height:1.9}
+.question-card{padding:30px;border-radius:16px;box-shadow:none;background:white}
+.question-top{font-size:12px;margin-bottom:18px;color:#65738a}
+.question-top>span:last-child{background:#f2f4f8;border-radius:6px;padding:4px 8px;white-space:nowrap}
+.question-text{font-size:22px;line-height:1.55;font-weight:650;margin-bottom:24px;max-width:1100px}
+.option{min-height:64px;padding:17px 18px;font-size:16px;line-height:1.55;gap:13px;border-radius:10px;border-color:#dfe4ed}
+.option .letter{width:29px;height:29px;font-size:12px;border-radius:7px}
+.option input{width:18px;height:18px;flex-basis:18px}
+.option.selected{box-shadow:inset 3px 0 var(--accent);background:#f3f1ff}
+.options{gap:12px}
+.instruction{font-size:12px;padding:7px 11px;border-radius:6px}
+.exhibit{background:#f6f7fa;padding:18px;border:1px solid #e4e8ef;margin-bottom:22px;border-radius:12px}
+.exhibit img{max-height:520px;max-width:100%;width:auto;object-fit:contain}
+.actions{background:white;padding:16px 20px;border:1px solid var(--line);border-radius:12px;margin-top:14px;gap:16px}
+.actions .primary{min-width:170px;min-height:46px;font-size:15px}
+.answer-requirement{font-size:13px}.nav-row{border:0;padding-top:0;margin-top:14px}
+.nav-row .button{min-width:150px;background:white}
+.feedback{padding:16px 20px;font-size:15px}
+.footer{max-width:1760px;width:96%;font-size:11px;padding:0 12px 24px}
+.study-menu-panel{width:330px;padding:18px}.study-toggle b{font-size:14px}.study-toggle small{font-size:12px}
+@media(min-width:1250px){
+ .workspace>section>.question-card:has(>.exhibit){display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);column-gap:28px;align-items:start}
+ .workspace>section>.question-card:has(>.exhibit)>.question-top{grid-column:1/-1;grid-row:1}
+ .workspace>section>.question-card:has(>.exhibit)>.question-text{grid-column:1/-1;grid-row:2}
+ .workspace>section>.question-card:has(>.exhibit)>.exhibit{grid-column:1;grid-row:3/5;margin:0;align-self:stretch;display:grid;align-items:center;min-height:340px}
+ .workspace>section>.question-card:has(>.exhibit)>.instruction{grid-column:2;grid-row:3;justify-self:start;margin-bottom:12px}
+ .workspace>section>.question-card:has(>.exhibit)>.options{grid-column:2;grid-row:4}
+}
+@media(min-width:1600px){.question-card{padding:34px}.question-text{font-size:24px}.option{min-height:76px;font-size:17px}.workspace{gap:26px}.exhibit img{max-height:600px}}
+@media(max-width:1100px){.topbar{gap:14px}.nav-link{padding:10px 12px;font-size:13px}.page{width:100%;padding:24px 20px 40px}.workspace{grid-template-columns:200px minmax(0,1fr);gap:18px}.side-card{padding:15px}.question-grid{gap:6px}.qdot{min-height:32px;font-size:12px}.question-text{font-size:20px}.option{font-size:15px}.footer{width:100%;padding-left:20px}}
+@media(max-width:900px){
+ .topbar{padding:14px 20px;grid-template-columns:1fr auto;gap:12px}
+ .main-nav{justify-content:flex-start}
+ .workspace{grid-template-columns:1fr}
+ .side-card{position:static;padding:16px}
+ .side-card h3{margin-bottom:12px}
+ .question-grid{grid-template-columns:repeat(12,minmax(0,1fr));max-height:104px;min-height:0}
+ .side-stats{display:block;margin-top:10px;padding-top:10px;line-height:1.6}
+ .question-card{padding:24px}.question-text{font-size:20px}
+}
+@media(max-width:600px){
+ .topbar{padding:14px 16px}.brand b{font-size:14px}.nav-link{font-size:12px;padding:10px 12px}
+ .page{padding:22px 12px 32px}.study-heading{gap:10px;margin-bottom:16px}.study-heading h1{font-size:26px}.study-heading .pill{font-size:10px;padding:7px 9px}
+ .study-toolbar{padding:10px;gap:9px;margin-bottom:14px}.study-toolbar>input{min-height:44px}
+ .study-toolbar>[data-home]{display:none}
+ .study-menu>summary{padding:10px 13px;font-size:13px}
+ .question-grid{grid-template-columns:repeat(8,minmax(0,1fr));max-height:88px}.qdot{min-height:36px}
+ .side-card{padding:14px}.side-stats{font-size:11px}
+ .question-card{padding:20px 16px}.question-top{font-size:10px}.question-top>span:last-child{white-space:normal}.question-text{font-size:18px;line-height:1.6;margin-bottom:20px}
+ .exhibit{padding:9px}.exhibit img{max-height:400px}
+ .option{font-size:14px;padding:14px 12px;min-height:60px;gap:10px}.option .letter{width:25px;height:25px}
+ .actions{padding:14px;gap:12px}.actions .primary{min-width:130px;flex:1}.answer-requirement{font-size:11px;margin-left:0}
+ .nav-row .button{min-width:0;flex:1;font-size:13px;padding:11px 12px}
+ .study-menu-panel{max-width:calc(100vw - 44px)}
+ .footer{font-size:10px;padding:0 14px 20px}
+}
