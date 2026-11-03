@@ -68,3 +68,5 @@ for(let i=0;i<30;i++){
  assert.equal(a.bs().studyAnswers[q.id][0],q.answer[0]);
 }
 console.log('PASS: repeated shuffle always changes order and preserves selected answer');
+
+require('./study-sync.test.cjs');
