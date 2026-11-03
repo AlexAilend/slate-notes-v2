@@ -239,7 +239,7 @@
       <section class="home-section">
         <div class="section-head">
           <div><h2>Прогрес · ${escapeHtml(current.product)}</h2><p>Прогрес банків зберігається окремо.</p></div>
-          <button class="button danger" id="resetBank">Скинути цей банк</button>
+          <button class="button danger" id="resetStudy">Скинути вивчення</button>
         </div>
         <div class="panel progress-card">
           <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${pct(answered, current.questionCount)}%"></div></div><b>${answered}/${current.questionCount}</b></div>
@@ -260,13 +260,28 @@
         render();
       };
     });
-    document.getElementById('resetBank').onclick = () => {
-      if (confirm(`Скинути Study, Exam і статистику тільки для ${current.title}?`)) {
-        state.bankState[current.id] = defaultBankState(current);
-        save();
-        render();
-      }
-    };
+    document.getElementById('resetStudy').onclick = confirmResetStudy;
+  }
+
+  function resetStudyProgress() {
+    const local = bs();
+    local.studyId = questions()[0]?.id || 1;
+    local.studyAnswers = {};
+    local.studyChecked = {};
+    local.optionOrders = {};
+    local.search = '';
+    local.filter = 'all';
+    local.statistics.attempts = {};
+    local.statistics.studyChecks = 0;
+    local.statistics.studyCorrect = 0;
+    // Keep the current exam and exam history intact.
+    save();
+  }
+
+  function confirmResetStudy() {
+    if (!confirm(`Скинути вивчення для ${bank().title}? Відповіді та кольорові позначки Study буде очищено. Історія іспитів збережеться.`)) return;
+    resetStudyProgress();
+    render();
   }
 
   function modeCard(icon, title, text, action, view) {
@@ -302,7 +317,7 @@
         <button class="button" data-home>← Головна</button>
         <input id="studySearch" value="${escapeHtml(local.search)}" placeholder="Знайти питання або номер…">
         <select id="studyFilter"><option value="all" ${local.filter === 'all' ? 'selected' : ''}>Усі</option><option value="unanswered" ${local.filter === 'unanswered' ? 'selected' : ''}>Без відповіді</option><option value="wrong" ${local.filter === 'wrong' ? 'selected' : ''}>Помилки</option></select>
-        <label><input type="checkbox" id="studyAnswerShuffle" ${local.shuffleStudy ? 'checked' : ''}> Shuffle answers</label><button class="button" id="studyShuffle">Випадкове</button>
+        <label><input type="checkbox" id="studyAnswerShuffle" ${local.shuffleStudy ? 'checked' : ''}> Shuffle answers</label><button class="button" id="studyShuffle">Випадкове</button><button class="button danger" id="resetStudy">Скинути вивчення</button>
       </div>
       <div class="workspace">
         <aside class="side-card"><h3>${escapeHtml(bank().product)} · ${filtered.length}</h3><div class="question-grid">${filtered.map(studyDot).join('')}</div><div class="side-stats">Study checks: ${local.statistics.studyChecks}<br>Правильно: ${local.statistics.studyCorrect}<br>Accuracy: ${pct(local.statistics.studyCorrect, local.statistics.studyChecks)}%</div></aside>
@@ -310,6 +325,7 @@
       </div>
     </main>`);
 
+    document.getElementById('resetStudy').onclick = confirmResetStudy;
     bindQuestionOptions(q, 'study', checked);
     document.getElementById('studyAnswerShuffle').onchange = event => {
       local.shuffleStudy = event.target.checked; local.optionOrders = {}; save(); render();
@@ -646,11 +662,11 @@
     $app.innerHTML=shell(`<main class="page"><section class="panel"><h1>${escapeHtml(title)}</h1>${inner}</section></main>`); bindGlobal();
   }
   async function renderHistory(owner=userId) {
-    cloudPage('History','Loading…');
+    cloudPage('History','Історія іспитів зберігається автоматично. Видалення через сайт недоступне.<br>Loading…');
     try {
       const rows=await allRows('exam_attempts',q=>q.eq('user_id',owner).order('started_at',{ascending:false}).order('id'));
       if(state.view!=='history'&&state.view!=='admin')return;
-      cloudPage('History',rows.map(r=>`<button class="button history-row" data-attempt="${r.id}">${escapeHtml(bankMap.get(r.bank_id)?.product || r.bank_id)} · ${new Date(r.started_at).toLocaleString()} · ${r.total_questions} questions · ${r.finished_at ? `${r.correct_answers} correct · ${r.score_percent}% · ${Math.round(r.duration_seconds/60)} min` : 'Resume Exam'}</button>`).join('')||'No attempts yet.');
+      cloudPage('History','<p class="muted">Історія іспитів зберігається автоматично. Видалення через сайт недоступне.</p>' + (rows.map(r=>`<button class="button history-row" data-attempt="${r.id}">${escapeHtml(bankMap.get(r.bank_id)?.product || r.bank_id)} · ${new Date(r.started_at).toLocaleString()} · ${r.total_questions} questions · ${r.finished_at ? `${r.correct_answers} correct · ${r.score_percent}% · ${Math.round(r.duration_seconds/60)} min` : 'Resume Exam'}</button>`).join('')||'No attempts yet.'));
       document.querySelectorAll('[data-attempt]').forEach(b=>b.onclick=()=>{
         const row=rows.find(r=>r.id===b.dataset.attempt);
         if(!row.finished_at && owner!==userId){alert('This attempt is still in progress.');return;}
